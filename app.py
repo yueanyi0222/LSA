@@ -13,7 +13,6 @@ n_unk = st.sidebar.number_input("未知数数量 (Number of Unknowns, U)", min_v
 
 st.sidebar.markdown("---")
 st.sidebar.header("2. 未知数标签设置")
-# 允许用户输入未知数的名称，默认填入 AB, BC, CD ...
 default_names = ["AB", "BC", "CD", "DE", "EF", "FG", "GH"]
 var_names = []
 for j in range(n_unk):
@@ -21,7 +20,7 @@ for j in range(n_unk):
     v_name = st.sidebar.text_input(f"未知数 {j+1} 的名称:", value=d_name, key=f"vname_{j}")
     var_names.append(v_name)
 
-# 预设例题数据（基线例题 6x3）
+# 预设例题数据
 default_A = np.array([
     [1, 0, 0],
     [0, 1, 0],
@@ -35,7 +34,6 @@ default_L = np.array([25.051, 25.047, 25.110, 50.091, 50.150, 75.200])
 st.markdown("---")
 st.header("📥 输入观测数据与系数 (Data Input)")
 
-# 动态构建数据输入区
 A = np.zeros((n_obs, n_unk))
 L = np.zeros((n_obs, 1))
 
@@ -64,11 +62,11 @@ st.header("🧮 9-Step Least Squares Adjustment Result")
 
 # STEP 1
 st.subheader("STEP 1 : Model the observation equation")
-st.write("平差观测方程 (Linearized Error Equation): \(V = AX - L\)")
+st.write("平差观测方程 (Linearized Error Equation): V = AX - L")
 for i in range(n_obs):
     eq_terms = [f"{A[i, j]:.1f}({var_names[j]})" for j in range(n_unk) if A[i, j] != 0]
     eq_str = " + ".join(eq_terms) if eq_terms else "0"
-    st.latex(rf"{eq_str} = {L[i, 0]:.3f} + V_{{{i+1}}}")
+    st.write(f"{eq_str} = {L[i, 0]:.3f} + V{i+1}")
 
 st.info(f"观测值数量 N = {n_obs} | 未知数数量 U = {n_unk} | 多余观测数 (Redundancy) = {n_obs - n_unk}")
 
@@ -84,11 +82,57 @@ else:
     c2.dataframe(L)
 
     # STEP 3
-    st.subheader("STEP 3 : Find matrix \(A^T A\)")
+    st.subheader("STEP 3 : Find matrix A^T * A")
     ATA = np.dot(A.T, A)
     st.dataframe(ATA)
 
     # STEP 4
-    st.subheader("STEP 4 : Find Determinant for \(A^T A\)")
+    st.subheader("STEP 4 : Find Determinant for A^T * A")
     det_ATA = float(np.linalg.det(ATA))
-    st.write(f"
+    st.write(f"det(A^T * A) = {det_ATA:.4f}")
+
+    if abs(det_ATA) < 1e-9:
+        st.error("⚠️ 错误：A^T * A 的行列式为 0（矩阵奇异），无法求逆！请检查输入的矩阵系数。")
+    else:
+        # STEP 5
+        st.subheader("STEP 5 : Find minor matrix A^T * A")
+        u_size = ATA.shape[0]
+        minor_ATA = np.zeros((u_size, u_size))
+        
+        for i in range(u_size):
+            for j in range(u_size):
+                sub = np.delete(np.delete(ATA, i, axis=0), j, axis=1)
+                if sub.size == 1:
+                    minor_ATA[i, j] = sub[0, 0]
+                elif sub.size == 0:
+                    minor_ATA[i, j] = 1.0
+                else:
+                    minor_ATA[i, j] = np.linalg.det(sub)
+        st.dataframe(minor_ATA)
+
+        # STEP 6
+        st.subheader("STEP 6 : Adjoint matrix A^T * A")
+        cofactor_matrix = np.zeros((u_size, u_size))
+        for i in range(u_size):
+            for j in range(u_size):
+                cofactor_matrix[i, j] = ((-1) ** (i + j)) * minor_ATA[i, j]
+        adj_ATA = cofactor_matrix.T
+        st.dataframe(adj_ATA)
+
+        # STEP 7
+        st.subheader("STEP 7 : Inverse matrix (A^T * A)^-1")
+        inv_ATA = adj_ATA / det_ATA
+        st.dataframe(inv_ATA)
+
+        # STEP 8
+        st.subheader("STEP 8 : Find A^T * L")
+        ATL = np.dot(A.T, L)
+        st.dataframe(ATL)
+
+        # STEP 9
+        st.subheader("STEP 9 : Solve X = (A^T * A)^-1 * A^T * L")
+        X = np.dot(inv_ATA, ATL)
+
+        st.success("🎉 最终平差结果 (Adjusted Variables):")
+        for j in range(n_unk):
+            st.markdown(f"### **{var_names[j]} = {X[j, 0]:.4f}**")
