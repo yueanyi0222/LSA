@@ -1,110 +1,94 @@
 import streamlit as st
 import numpy as np
 
-st.set_page_config(page_title="LSA Solver", layout="wide")
+st.set_page_config(page_title="Dynamic LSA Solver", layout="wide")
 
-st.title("📐 Least Squares Adjustment (LSA) Step-by-Step Solver")
-st.write("This interactive app demonstrates the 9-step mathematical procedures for LSA in Surveying Engineering.")
+st.title("📐 Least Squares Adjustment (LSA) Universal Solver")
+st.write("自由设定观测值（Observations）和未知数（Unknowns）数量，程序将自动完成 9 步平差计算：")
 
-# 侧边栏：数据输入
-st.sidebar.header("1. Input Data Configuration")
-n_obs = st.sidebar.number_input("Number of Observations (N)", min_value=2, max_value=10, value=4)
-n_unk = st.sidebar.number_input("Number of Unknowns (U)", min_value=1, max_value=5, value=2)
+# 侧边栏：配置参数
+st.sidebar.header("1. 动态设置参数")
+n_obs = st.sidebar.number_input("观测值数量 (Number of Observations, N)", min_value=1, max_value=20, value=6)
+n_unk = st.sidebar.number_input("未知数数量 (Number of Unknowns, U)", min_value=1, max_value=10, value=3)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Matrix A (Design Matrix) & Vector L")
+st.sidebar.header("2. 未知数标签设置")
+# 允许用户输入未知数的名称，默认填入 AB, BC, CD ...
+default_names = ["AB", "BC", "CD", "DE", "EF", "FG", "GH"]
+var_names = []
+for j in range(n_unk):
+    d_name = default_names[j] if j < len(default_names) else f"X{j+1}"
+    v_name = st.sidebar.text_input(f"未知数 {j+1} 的名称:", value=d_name, key=f"vname_{j}")
+    var_names.append(v_name)
 
-default_A = np.array([[1.0, 0.0], [1.0, 1.0], [1.0, 2.0], [1.0, 3.0]])
-default_L = np.array([1.2, 1.9, 3.1, 3.8])
+# 预设例题数据（基线例题 6x3）
+default_A = np.array([
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 1, 0],
+    [0, 1, 1],
+    [1, 1, 1]
+])
+default_L = np.array([25.051, 25.047, 25.110, 50.091, 50.150, 75.200])
 
+st.markdown("---")
+st.header("📥 输入观测数据与系数 (Data Input)")
+
+# 动态构建数据输入区
 A = np.zeros((n_obs, n_unk))
 L = np.zeros((n_obs, 1))
 
-cols = st.columns(2)
+cols = st.columns([n_unk + 1, 1])
 
 with cols[0]:
-    st.subheader("Matrix A")
+    st.subheader("矩阵 A (设计矩阵系数 Matrix A)")
     for i in range(n_obs):
         row_cols = st.columns(n_unk)
         for j in range(n_unk):
-            val = default_A[i, j] if i < 4 and j < 2 else 0.0
-            A[i, j] = row_cols[j].number_input(f"A[{i+1},{j+1}]", value=val, key=f"A_{i}_{j}")
+            def_val = float(default_A[i, j]) if (i < 6 and j < 3) else 0.0
+            A[i, j] = row_cols[j].number_input(
+                f"Obs {i+1} -> {var_names[j]} 系数", 
+                value=def_val, 
+                key=f"A_{i}_{j}"
+            )
 
 with cols[1]:
-    st.subheader("Vector L")
+    st.subheader("向量 L (观测值 Observation Vector)")
     for i in range(n_obs):
-        val = default_L[i] if i < 4 else 0.0
-        L[i, 0] = st.number_input(f"L[{i+1}]", value=val, key=f"L_{i}")
+        def_l = float(default_L[i]) if i < 6 else 0.0
+        L[i, 0] = st.number_input(f"L[{i+1}]", value=def_l, format="%.3f", key=f"L_{i}")
 
 st.markdown("---")
-st.header("🧮 Step-by-Step Calculation Results")
+st.header("🧮 9-Step Least Squares Adjustment Result")
 
-# Step 1: Model
-st.subheader("Step 1: Model the Observation Equation")
-st.latex(r"L + V = AX \quad \text{or} \quad V = AX - L")
-st.info(f"Observations (N): {n_obs} | Unknowns (U): {n_unk} | Redundancy: {n_obs - n_unk}")
+# STEP 1
+st.subheader("STEP 1 : Model the observation equation")
+st.write("平差观测方程 (Linearized Error Equation): \(V = AX - L\)")
+for i in range(n_obs):
+    eq_terms = [f"{A[i, j]:.1f}({var_names[j]})" for j in range(n_unk) if A[i, j] != 0]
+    eq_str = " + ".join(eq_terms) if eq_terms else "0"
+    st.latex(rf"{eq_str} = {L[i, 0]:.3f} + V_{{{i+1}}}")
 
-# Step 2: Create matrices
-st.subheader("Step 2: Create Matrix A, X, and L")
-c1, c2 = st.columns(2)
-c1.write("**Matrix A:**")
-c1.dataframe(A)
-c2.write("**Vector L:**")
-c2.dataframe(L)
+st.info(f"观测值数量 N = {n_obs} | 未知数数量 U = {n_unk} | 多余观测数 (Redundancy) = {n_obs - n_unk}")
 
-# Step 3: Find ATA
-st.subheader("Step 3: Find Matrix A^T * A")
-ATA = np.dot(A.T, A)
-st.dataframe(ATA)
-
-# Step 4: Determinant
-st.subheader("Step 4: Find Determinant for A^T * A")
-det_ATA = float(np.linalg.det(ATA))
-st.write(f"det(A^T * A) = {det_ATA:.6f}")
-
-if abs(det_ATA) < 1e-9:
-    st.error("Error: Matrix A^T A is singular or near-singular! Unable to compute inverse.")
+if n_obs < n_unk:
+    st.error("⚠️ 错误：观测值数量 (N) 必须大于等于未知数数量 (U) 才能进行平差！")
 else:
-    # Step 5: Minor matrix
-    st.subheader("Step 5: Find Minor Matrix for A^T * A")
-    u_size = ATA.shape[0]
-    minor_ATA = np.zeros((u_size, u_size))
-    
-    for i in range(u_size):
-        for j in range(u_size):
-            sub = np.delete(np.delete(ATA, i, axis=0), j, axis=1)
-            if sub.size == 1:
-                minor_ATA[i, j] = sub[0, 0]
-            elif sub.size == 0:
-                minor_ATA[i, j] = 1.0
-            else:
-                minor_ATA[i, j] = np.linalg.det(sub)
-                
-    st.dataframe(minor_ATA)
+    # STEP 2
+    st.subheader("STEP 2 : Create matrix A, X and L")
+    c1, c2 = st.columns(2)
+    c1.write("**Matrix A:**")
+    c1.dataframe(A)
+    c2.write("**Vector L:**")
+    c2.dataframe(L)
 
-    # Step 6: Adjoint matrix
-    st.subheader("Step 6: Adjoint Matrix of A^T * A")
-    cofactor_matrix = np.zeros((u_size, u_size))
-    for i in range(u_size):
-        for j in range(u_size):
-            cofactor_matrix[i, j] = ((-1) ** (i + j)) * minor_ATA[i, j]
-    adj_ATA = cofactor_matrix.T
-    st.dataframe(adj_ATA)
+    # STEP 3
+    st.subheader("STEP 3 : Find matrix \(A^T A\)")
+    ATA = np.dot(A.T, A)
+    st.dataframe(ATA)
 
-    # Step 7: Inverse matrix
-    st.subheader("Step 7: Inverse Matrix (A^T * A)^-1")
-    inv_ATA = adj_ATA / det_ATA
-    st.dataframe(inv_ATA)
-
-    # Step 8: Find ATL
-    st.subheader("Step 8: Find A^T * L")
-    ATL = np.dot(A.T, L)
-    st.dataframe(ATL)
-
-    # Step 9: Solve X
-    st.subheader("Step 9: Solve X = (A^T * A)^-1 * A^T * L")
-    X = np.dot(inv_ATA, ATL)
-    
-    st.success("🎉 Solution Vector X:")
-    for i in range(n_unk):
-        st.write(f"**X[{i+1}] = {X[i, 0]:.6f}**")
+    # STEP 4
+    st.subheader("STEP 4 : Find Determinant for \(A^T A\)")
+    det_ATA = float(np.linalg.det(ATA))
+    st.write(f"
