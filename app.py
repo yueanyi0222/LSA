@@ -11,8 +11,8 @@ st.sidebar.header("1. Points Configuration")
 n_pts = st.sidebar.number_input("Number of Coordinate Points (N)", min_value=2, max_value=20, value=4)
 
 # Default data from PDF: A(3.0, 4.5), B(4.25, 4.25), C(5.5, 5.5), D(8.0, 5.5)
-default_x = [3.0, 4.25, 5.5, 8.0]
-default_y = [4.5, 4.25, 5.5, 5.5]
+default_x = [3.000, 4.250, 5.500, 8.000]
+default_y = [4.500, 4.250, 5.500, 5.500]
 
 st.markdown("---")
 st.header("📥 Input Point Coordinates (x, y)")
@@ -31,8 +31,9 @@ for i in range(n_pts):
         def_x = default_x[i] if i < len(default_x) else float(i + 1)
         def_y = default_y[i] if i < len(default_y) else float(i + 1)
         
-        px = st.number_input(f"x_{i+1}", value=def_x, format="%.2f", key=f"px_{i}")
-        py = st.number_input(f"y_{i+1}", value=def_y, format="%.2f", key=f"py_{i}")
+        # 支持 3 到 4 位小数输入 (format="%.4f", step=0.0001)
+        px = st.number_input(f"x_{i+1}", value=def_x, format="%.4f", step=0.0001, key=f"px_{i}")
+        py = st.number_input(f"y_{i+1}", value=def_y, format="%.4f", step=0.0001, key=f"py_{i}")
         
         x_coords.append(px)
         y_coords.append(py)
@@ -55,7 +56,7 @@ st.subheader("STEP 1 : Use the Observation Equation")
 st.latex(r"y = m \cdot x + b + V")
 st.write("**Observation Equations for each point:**")
 for i in range(n_pts):
-    st.write(f"{x_coords[i]:.2f} m + b = {y_coords[i]:.2f} + V{i+1}")
+    st.write(f"{x_coords[i]:.4f} m + b = {y_coords[i]:.4f} + V{i+1}")
 
 # STEP 2
 st.subheader("STEP 2 : Construct Matrix A, X and L")
